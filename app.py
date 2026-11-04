@@ -1,3 +1,5 @@
+import sqlite3
+from datetime import datetime
 import streamlit as st
 import pickle
 import pandas as pd
@@ -17,6 +19,24 @@ def load_model():
         return None
 
 model = load_model()
+
+def init_db():
+    conn = sqlite3.connect("predictions.db")
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS history (time TEXT, tenure INTEGER, monthly_charges REAL, churn_pred TEXT, revenue REAL)")
+    conn.commit()
+    conn.close()
+
+def save_prediction(tenure, monthly, churn, revenue):
+    conn = sqlite3.connect("predictions.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO history VALUES(?,?,?,?,?)",(datetime.now().strftime("%d-%m %H:%M"),tenure, monthly, churn, revenue))
+    conn.commit()
+    conn.close()
+
+init_db()
+
+
 
 st.title("📊 Customer Intelligence - Churn Prediction")
 st.markdown("### Revenue & Churn Prediction Dashboard")
@@ -62,11 +82,29 @@ if st.sidebar.button("Predict Churn"):
     else:
         st.success(f"✅ LOW RISK: Customer safe hai - Churn chance {churn_prob*100:.0f}%")
 
+    churn_label = "HIGH" if churn_prob > 0.5 else "MEDIUM" if churn_prob > 0.3 else "LOW"
+    save_prediction(tenure,monthly_charges,churn_label,monthly_charges*12)
+    st.toast("Prediction Database me save ho gaya! ✅")
 
 else:
     st.info("👈 Sidebar me deatails bharke 'Predict Churn' pe click karo.")
 
     st.markdown("### Dashboard Insights:")
+
+
+st.sidebar.divider()
+if st.sidebar.checkbox("Show Prediction History"):
+    conn = sqlite3.connect("predictions.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM history ORDER BY time DESC")
+    data = c.fetchall()
+    conn.close()
+
+    import pandas as pd
+    df_hist = pd.DataFrame(data, columns=["Time", "Tenure", "Monthly", "Churn", "Revenue"])
+    st.subheader("📃 Past Predictions History")
+    st.dataframe(df_hist, use_container_width=True)
+    
 
 
 
